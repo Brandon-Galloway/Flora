@@ -1,0 +1,109 @@
+# PERENUAL API
+
+type PlantDimensions {
+    type: String
+    min_value: Int
+    max_value: Int
+    unit: String
+}
+
+type PlantHardiness {
+    min: Int
+    max: Int
+}
+
+type PlantWateringInfo {
+    value: String
+    unit: String
+}
+
+type Plant @aws_api_key @aws_cognito_user_pools {
+    id: ID!
+    common_name: String
+    scientific_name: [String]
+    other_name: [String]
+    family: String
+    origin: [String]
+    type: String @aws_cognito_user_pools(cognito_groups: ["Admin"])
+    dimensions: PlantDimensions
+    cycle: String
+    attracts: [String]
+    propagation: [String]
+    hardiness: PlantHardiness
+    watering: String
+    watering_period: String
+    watering_general_benchmark: PlantWateringInfo
+    sunlight: [String]
+    pruning_month: [String]
+    growth_rate: String
+    thorny: Boolean
+    indoor: Boolean
+    care_level: String
+    flowers: Boolean
+    flowering_season: String
+    flower_color: String
+    leaf: Boolean
+    leaf_color: [String]
+    poisonous_to_humans: Boolean
+    poisonous_to_pets: Boolean
+    description: String
+}
+
+# ACCUWEATHER API
+
+type Reading {
+    Value: Float,
+    Unit: String,
+    UnitType: Int,
+    Phrase: String
+}
+
+type HourlyReading {
+        DateTime: String,
+        EpochDateTime: Int,
+        WeatherIcon: Int,
+        IconPhrase: String,
+        HasPrecipitation: Boolean,
+        IsDaylight: Boolean,
+        Temperature: Reading,
+        RealFeelTemperature: Reading,
+        RealFeelTemperatureShade: Reading,
+        WetBulbTemperature: Reading,
+        DewPoint: Reading,
+        # Wind: {
+        #     Speed: Reading,
+        #     Direction: {
+        #         Degrees: Int,
+        #         Localized: String,
+        #         English: String
+        #     }
+        # },
+        # WindGust: {
+        #     Speed: Reading
+        # },
+        RelativeHumidity: Int,
+        IndoorRelativeHumidity: Int,
+        Visibility: Reading,
+        Ceiling: Reading,
+        UVIndex: Int,
+        UVIndexText: String,
+        PrecipitationProbability: Int,
+        ThunderstormProbability: Int,
+        RainProbability: Int,
+        SnowProbability: Int,
+        IceProbability: Int,
+        TotalLiquid: Reading,
+        Rain: Reading,
+        Snow: Reading,
+        Ice: Reading,
+        CloudCover: Int,
+        Evapotranspiration: Reading,
+        SolarIrradiance: Reading,
+    }
+
+
+type Query {
+    plant(id: ID!): Plant @aws_api_key @aws_cognito_user_pools
+    superPlant(id: ID!): Plant @aws_cognito_user_pools(cognito_groups: ["Admin"])
+    weather(location: ID!): [HourlyReading] @aws_api_key @aws_cognito_user_pools
+}
