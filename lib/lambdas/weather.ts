@@ -1,5 +1,6 @@
 import axios  from "axios";
-import LambdaSecretHelper from "../util/utils";
+import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
+
 
 type AppSyncEvent = {
     info: {
@@ -17,10 +18,11 @@ type AppSyncEvent = {
 }
 
 const ACCUWEATHER_BASE_URL = 'http://dataservice.accuweather.com'
+const sm = new SecretsManagerClient({});
 
 async function getWeather(location: string) {
     try {
-        const ACCUWEATHER_API_KEY = await LambdaSecretHelper.getSecretByArn(process.env.AWS_SESSION_TOKEN!,process.env.ACCUWEATHER_API_KEY_ID!)
+        const ACCUWEATHER_API_KEY = await decodeSMSecret("ACCUWEATHER_API_KEY");
         const apiURL = `${ACCUWEATHER_BASE_URL}/forecasts/v1/hourly/12hour/${location}?language=en-us&apikey=${ACCUWEATHER_API_KEY.SecretString}&details=true&metric=false`
         const apiResponseData = await axios.get(apiURL);
         return apiResponseData.data
@@ -31,6 +33,14 @@ async function getWeather(location: string) {
             body: 'Error calling the Perenual Service'
         }
     }
+}
+
+async function decodeSMSecret(smkey: String) {
+    const params = {
+        SecretId: smkey
+    };
+    const result = await sm.send(new GetSecretValueCommand(params));
+    return result.SecretString;
 }
 
 export const handler = async(event: AppSyncEvent) => {

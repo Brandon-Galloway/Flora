@@ -70,21 +70,8 @@ type HourlyReading {
         RealFeelTemperatureShade: Reading,
         WetBulbTemperature: Reading,
         DewPoint: Reading,
-        # Wind: {
-        #     Speed: Reading,
-        #     Direction: {
-        #         Degrees: Int,
-        #         Localized: String,
-        #         English: String
-        #     }
-        # },
-        # WindGust: {
-        #     Speed: Reading
-        # },
         RelativeHumidity: Int,
         IndoorRelativeHumidity: Int,
-        Visibility: Reading,
-        Ceiling: Reading,
         UVIndex: Int,
         UVIndexText: String,
         PrecipitationProbability: Int,
@@ -101,9 +88,36 @@ type HourlyReading {
         SolarIrradiance: Reading,
     }
 
+type SensorReading {
+    id: ID!,
+    Timestamp: Int,
+    SoilTemperature: [Reading],
+    AirTemperature: [Reading],
+    Humidity: Reading,
+    Light: Reading,
+    VisibleLight: Reading,
+    InfraredLight: Reading
+}
+
+input PlantSearch {
+    id: ID,
+    name: String
+}
 
 type Query {
-    plant(id: ID!): Plant @aws_api_key @aws_cognito_user_pools
-    superPlant(id: ID!): Plant @aws_cognito_user_pools(cognito_groups: ["Admin"])
+    plants(where: PlantSearch!): [Plant] @aws_api_key @aws_cognito_user_pools
     weather(location: ID!): [HourlyReading] @aws_api_key @aws_cognito_user_pools
+}
+
+input SensorDataInput {
+    SoilTemperature: Int!,
+    AirTemperature: Int!,
+    Humidity: Int!,
+    Light: Int!,
+    VisibleLight: Int!,
+    InfraredLight: Int!
+}
+
+type Mutation {
+    uploadSensorReading(sensorData: SensorDataInput!): SensorReading @aws_api_key @aws_cognito_user_pools
 }

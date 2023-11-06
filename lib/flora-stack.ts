@@ -7,7 +7,7 @@ import { Construct } from 'constructs'
 import * as path from "path"
 import { configureCfnOutputs } from './outputs/cfn-outputs'
 import { Secret } from "aws-cdk-lib/aws-secretsmanager";
-import LambdaSecretHelper from './util/utils'
+import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb'
 
 export class FloraStack extends cdk.Stack {
 
@@ -35,6 +35,21 @@ export class FloraStack extends cdk.Stack {
 
     const userPoolClient = new UserPoolClient(this, "UserPoolClient", {userPool})
 
+    // CONFIGURE DYNAMODB TABLE
+    const sensorDataTable = new Table(this,"flora-sensor-data-table",{
+      //tableName: "FloraSensorData",
+      billingMode: BillingMode.PAY_PER_REQUEST,
+      partitionKey: {
+        name: 'Id',
+        type: AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'Timestamp',
+        type: AttributeType.NUMBER
+      },
+      timeToLiveAttribute: 'ExpireTimestamp'
+    })
+
     // CONFIGURE GRAPHQL_API
     const api = new GraphqlApi(this, "flora-graphql-api", {
       name: "flora-api",
@@ -59,63 +74,59 @@ export class FloraStack extends cdk.Stack {
     })
 
     // RETRIEVE SECRET(s)
-    const PERENUAL_API_KEY = Secret.fromSecretAttributes(this, "PERENUAL_API_KEY", {
-      secretCompleteArn:
-        "arn:aws:secretsmanager:us-east-2:391751429626:secret:PERENUAL_API_KEY-5pR0AZ"
-    })
-
-    const ACCUWEATHER_API_KEY = Secret.fromSecretAttributes(this, "ACCUWEATHER_API_KEY", {
-      secretCompleteArn:
-        "arn:aws:secretsmanager:us-east-2:391751429626:secret:ACCUWEATHER_API_KEY-jTft6J"
-    })
+    const PERENUAL_API_KEY = Secret.fromSecretNameV2(this,"PERENUAL_API_KEY","PERENUAL_API_KEY");
+    const ACCUWEATHER_API_KEY = Secret.fromSecretNameV2(this,"ACCUWEATHER_API_KEY","ACCUWEATHER_API_KEY");
 
     // CONFIGURE LAMBDA(s)
-
-    // const plantLambda = new Function(this, "AppSyncPlantHandler", {
-    //   runtime: Runtime.NODEJS_18_X,
-    //   handler: "main.handler",
-    //   code: Code.fromAsset('lambdas')
-    // });
-
     const plantLambda = new NodejsFunction(this, "AppSyncPlantHandler", {
       runtime: Runtime.NODEJS_18_X,
       handler: "handler",
       entry: path.join(__dirname, `../lib/lambdas/plant.ts`),
       environment: {
-        TEST_VARIABLE: 'This is an environment variable!',
-        PERENUAL_API_KEY_ID: PERENUAL_API_KEY.secretName
+        PERENUAL_API_KEY_ID: "PERENUAL_API_KEY"
       },
     })
-    LambdaSecretHelper.configureSecretsForLambda(this,plantLambda,[PERENUAL_API_KEY])
+    PERENUAL_API_KEY.grantRead(plantLambda);
 
     const weatherLambda = new NodejsFunction(this, "AppSyncWeatherHandler", {
       runtime: Runtime.NODEJS_18_X,
       handler: "handler",
       entry: path.join(__dirname, `../lib/lambdas/weather.ts`),
       environment: {
-        ACCUWEATHER_API_KEY_ID: ACCUWEATHER_API_KEY.secretName
+        ACCUWEATHER_API_KEY_ID: "ACCUWEATHER_API_KEY"
       },
     })
-    LambdaSecretHelper.configureSecretsForLambda(this,weatherLambda,[ACCUWEATHER_API_KEY])
+    ACCUWEATHER_API_KEY.grantRead(weatherLambda);
+
+    const sensorUploadLambda = new NodejsFunction(this, "AppSyncSensorUploadHandler", {
+      runtime: Runtime.NODEJS_18_X,
+      handler: "handler",
+      entry: path.join(__dirname, `../lib/lambdas/sensorUpload.ts`),
+      environment: {
+        SENSOR_DATA_TABLE: sensorDataTable.tableName
+      },
+    })
+    sensorDataTable.grantReadWriteData(sensorUploadLambda);
 
     // Set the Lambda function as a data source for the AppSync API
     const plantDataSource = api.addLambdaDataSource('plantDataSource',plantLambda)
     const weatherDataSource = api.addLambdaDataSource('weather',weatherLambda)
+    const sensorUploadDataSource = api.addLambdaDataSource('sensorUpload',sensorUploadLambda);
 
     plantDataSource.createResolver("plant-resolver",{
       typeName: "Query",
-      fieldName: "plant"
-    })
-
-    plantDataSource.createResolver("superPlant-resolver",{
-      typeName: "Query",
-      fieldName: "superPlant"
+      fieldName: "plants"
     })
 
     weatherDataSource.createResolver("weather-resolver",{
       typeName: "Query",
       fieldName: "weather"
     })
+
+    sensorUploadDataSource.createResolver('sensor-upload-resolver', {
+      typeName: "Mutation",
+      fieldName: "uploadSensorReading",
+    });
 
     // CONFIGURE CFN OUTPUT
     const cfnOutputs = configureCfnOutputs(this,new Map([
