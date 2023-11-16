@@ -1,13 +1,15 @@
 import * as cdk from 'aws-cdk-lib'
-import { FieldLogLevel, GraphqlApi, SchemaFile, AuthorizationType, Definition } from 'aws-cdk-lib/aws-appsync'
-import { AccountRecovery, UserPool, UserPoolClient, VerificationEmailStyle } from 'aws-cdk-lib/aws-cognito'
+import * as path from "path"
+import { Construct } from 'constructs'
 import { Runtime } from 'aws-cdk-lib/aws-lambda'
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs'
-import { Construct } from 'constructs'
-import * as path from "path"
+import { FieldLogLevel, GraphqlApi, SchemaFile, AuthorizationType, Definition } from 'aws-cdk-lib/aws-appsync'
+import { AccountRecovery, UserPool, UserPoolClient, VerificationEmailStyle } from 'aws-cdk-lib/aws-cognito'
 import { configureCfnOutputs } from './outputs/cfn-outputs'
 import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb'
+import * as iot from 'aws-cdk-lib/aws-iot'
+import { ServicePrincipal } from 'aws-cdk-lib/aws-iam'
 
 export class FloraStack extends cdk.Stack {
 
@@ -23,7 +25,8 @@ export class FloraStack extends cdk.Stack {
         emailStyle: VerificationEmailStyle.CODE
       },
       autoVerify: {
-        email: true
+        email: true,
+        phone: true,
       },
       standardAttributes: {
         email: {
@@ -37,7 +40,6 @@ export class FloraStack extends cdk.Stack {
 
     // CONFIGURE DYNAMODB TABLE
     const sensorDataTable = new Table(this,"flora-sensor-data-table",{
-      //tableName: "FloraSensorData",
       billingMode: BillingMode.PAY_PER_REQUEST,
       partitionKey: {
         name: 'Id',
@@ -71,6 +73,23 @@ export class FloraStack extends cdk.Stack {
           }
         ]
       }
+    })
+
+    const floraUploadTopic = "flora/submit"
+
+    // Create IoT Policy
+    const floraPolicy = new iot.CfnPolicy(this, 'floraPolicy', {
+      policyName: 'Flora_Policy',
+      policyDocument: {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": ["iot:*"],
+              "Resource": ["*"]
+            }
+          ]
+      },
     })
 
     // RETRIEVE SECRET(s)
@@ -128,13 +147,34 @@ export class FloraStack extends cdk.Stack {
       fieldName: "uploadSensorReading",
     });
 
+    // Create IoT Rule to Pass Messages to the creation lambda
+    const floraDataSubmissionRule = new iot.CfnTopicRule(this, 'FloraDataSubmissionRule', {
+      ruleName: 'FloraDataSubmissionRule',
+      topicRulePayload: {
+        actions: [
+          {
+            lambda: {
+              functionArn: sensorUploadLambda.functionArn
+            }
+          },
+        ],
+        ruleDisabled: false,
+        sql: `SELECT * FROM '${floraUploadTopic}'`,
+      }
+    })
+    sensorUploadLambda.addPermission('IoTAccess', {
+      principal: new ServicePrincipal("iot.amazonaws.com"),
+      action: 'lambda:InvokeFunction',
+      sourceArn: floraDataSubmissionRule.attrArn
+    })
+
     // CONFIGURE CFN OUTPUT
     const cfnOutputs = configureCfnOutputs(this,new Map([
       ['GraphQLAPIURL',api.graphqlUrl],
       ['AppSyncAPIKey',api.apiId || ''],
       ['ProjectRegion',this.region],
       ['UserPoolId',userPool.userPoolId],
-      ['UserPoolClientId', userPoolClient.userPoolClientId]
+      ['UserPoolClientId', userPoolClient.userPoolClientId],
     ]))
   }
 }

@@ -8,27 +8,14 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto"
 
-type AppSyncEvent = {
-  info: {
-      fieldName: string
-  },
-  arguments: {
-    sensorData : {
-      Timestamp: number,
-      SoilTemperature: number,
-      AirTemperature: number,
-      Humidity: number,
-      Light: number,
-      VisibleLight: number,
-      InfraredLight: number
-  }
-  },
-  identity: {
-      username: string,
-      claims: {
-          [key: string]: string[]
-      }
-  }
+type SensorCollectionEvent = {
+  Timestamp: number,
+  SoilTemperature: number,
+  AirTemperature: number,
+  Humidity: number,
+  Light: number,
+  VisibleLight: number,
+  InfraredLight: number
 }
 
 const client = new DynamoDBClient({});
@@ -36,7 +23,7 @@ const dynamo = DynamoDBDocumentClient.from(client);
 const tableName = process.env.SENSOR_DATA_TABLE;
 
 
-async function uploadSensorData(sensorData: any) {
+async function uploadSensorData(sensorData: SensorCollectionEvent) {
   const timestamp = Math.floor(Date.now() / 1000)
   const twoYearsInSeconds = 2 * 365 * 24 * 60 * 60
   const ttl_timestamp = timestamp + twoYearsInSeconds;
@@ -59,6 +46,7 @@ async function uploadSensorData(sensorData: any) {
   }
   }
   
-  export const handler = async(event: AppSyncEvent,context: any) => {
-    return uploadSensorData(event.arguments.sensorData);
+  export const handler = async(event: SensorCollectionEvent,context: any) => {
+    console.log("EVENT: " + JSON.stringify(event));
+    return uploadSensorData(event);
   }
