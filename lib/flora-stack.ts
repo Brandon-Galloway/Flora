@@ -117,7 +117,7 @@ export class FloraStack extends cdk.Stack {
     })
     ACCUWEATHER_API_KEY.grantRead(weatherLambda);
 
-    const sensorUploadLambda = new NodejsFunction(this, "AppSyncSensorUploadHandler", {
+    const sensorUploadLambda = new NodejsFunction(this, "SensorUploadHandler", {
       runtime: Runtime.NODEJS_18_X,
       handler: "handler",
       entry: path.join(__dirname, `../lib/lambdas/sensorUpload.ts`),
@@ -130,7 +130,6 @@ export class FloraStack extends cdk.Stack {
     // Set the Lambda function as a data source for the AppSync API
     const plantDataSource = api.addLambdaDataSource('plantDataSource',plantLambda)
     const weatherDataSource = api.addLambdaDataSource('weather',weatherLambda)
-    const sensorUploadDataSource = api.addLambdaDataSource('sensorUpload',sensorUploadLambda);
 
     plantDataSource.createResolver("plant-resolver",{
       typeName: "Query",
@@ -141,11 +140,6 @@ export class FloraStack extends cdk.Stack {
       typeName: "Query",
       fieldName: "weather"
     })
-
-    sensorUploadDataSource.createResolver('sensor-upload-resolver', {
-      typeName: "Mutation",
-      fieldName: "uploadSensorReading",
-    });
 
     // Create IoT Rule to Pass Messages to the creation lambda
     const floraDataSubmissionRule = new iot.CfnTopicRule(this, 'FloraDataSubmissionRule', {
