@@ -9,6 +9,7 @@ import {
 import { randomUUID } from "crypto"
 
 type SensorCollectionEvent = {
+  DeviceId: string,
   Timestamp: number,
   SoilTemperature: number,
   AirTemperature: number,

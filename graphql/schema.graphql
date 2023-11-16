@@ -108,16 +108,3 @@ type Query {
     plants(where: PlantSearch!): [Plant] @aws_api_key @aws_cognito_user_pools
     weather(location: ID!): [HourlyReading] @aws_api_key @aws_cognito_user_pools
 }
-
-input SensorDataInput {
-    SoilTemperature: Int!,
-    AirTemperature: Int!,
-    Humidity: Int!,
-    Light: Int!,
-    VisibleLight: Int!,
-    InfraredLight: Int!
-}
-
-type Mutation {
-    uploadSensorReading(sensorData: SensorDataInput!): SensorReading @aws_api_key @aws_cognito_user_pools
-}
