@@ -10,7 +10,6 @@ type AppSyncEvent = {
     },
     arguments: {
         where : {
-            id: number,
             DeviceId: String,
             StartTimestamp: number,
             EndTimestamp: number
@@ -30,27 +29,33 @@ const tableName = process.env.SENSOR_DATA_TABLE;
 
 
 async function fetchSensorData(args: any) {
-    console.log("ARGS: " + JSON.stringify(args));
-    console.log("TS: " + args.StartTimestamp.toString() + " " + args.EndTimestamp.toString());
-    const params = {
+    const params: any = {
         TableName: tableName,
         IndexName: "DeviceIndex",
-        KeyConditionExpression: 'DeviceId = :deviceId AND #ts BETWEEN :startTimestamp AND :endTimestamp',
-        ExpressionAttributeNames: {
-            '#ts': "Timestamp",
-        },
+        KeyConditionExpression: 'DeviceId = :deviceId',
+        ExpressionAttributeNames: {},
         ExpressionAttributeValues: {
             ':deviceId': args.DeviceId,
-            ':startTimestamp': args.StartTimestamp,
-            ':endTimestamp': args.EndTimestamp
         }
     }
-    console.log("PARAMS: " + JSON.stringify(params));
-    
+
+    // If a time range is specified, narrow the query
+    if(args.StartTimestamp) {
+        params.KeyConditionExpression += ' AND #ts BETWEEN :startTimestamp AND :endTimestamp'
+        params.ExpressionAttributeNames = {
+            ...params.ExpressionAttributeNames,
+            '#ts': 'Timestamp'
+        }
+        params.ExpressionAttributeValues = {
+            ...params.ExpressionAttributeValues,
+            ':startTimestamp': args.StartTimestamp,
+            ':endTimestamp': args.EndTimestamp,
+        };
+    }
+        
     const data = await dynamo.send(
         new QueryCommand(params)
     );
-    console.log(JSON.stringify(data));
     return data.Items;
   }
   

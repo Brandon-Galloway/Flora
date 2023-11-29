@@ -192,7 +192,7 @@ export class FloraStack extends cdk.Stack {
     // CONFIGURE CFN OUTPUT
     const cfnOutputs = configureCfnOutputs(this,new Map([
       ['GraphQLAPIURL',api.graphqlUrl],
-      ['AppSyncAPIKey',api.apiId || ''],
+      ['AppSyncAPIKey',api.apiKey || ''],
       ['ProjectRegion',this.region],
       ['UserPoolId',userPool.userPoolId],
       ['UserPoolClientId', userPoolClient.userPoolClientId],

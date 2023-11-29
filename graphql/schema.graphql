@@ -106,7 +106,6 @@ input PlantSearch {
 }
 
 input SensorDataSearch {
-    id: ID,
     DeviceId: String!,
     StartTimestamp: Int,
     EndTimestamp: Int
