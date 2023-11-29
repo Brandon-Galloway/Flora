@@ -89,14 +89,15 @@ type HourlyReading {
     }
 
 type SensorReading {
-    id: ID!,
-    Timestamp: Int,
-    SoilTemperature: [Reading],
-    AirTemperature: [Reading],
-    Humidity: Reading,
-    Light: Reading,
-    VisibleLight: Reading,
-    InfraredLight: Reading
+    DeviceId: String!,
+    Timestamp: Int!,
+    SoilTemperature: Int!,
+    SoilMoisture: Int,
+    AirTemperature: Int!,
+    Humidity: Int!,
+    Light: Int!,
+    VisibleLight: Int!,
+    InfraredLight: Int!
 }
 
 input PlantSearch {
@@ -104,7 +105,15 @@ input PlantSearch {
     name: String
 }
 
+input SensorDataSearch {
+    id: ID,
+    DeviceId: String!,
+    StartTimestamp: Int,
+    EndTimestamp: Int
+}
+
 type Query {
-    plants(where: PlantSearch!): [Plant] @aws_api_key @aws_cognito_user_pools
-    weather(location: ID!): [HourlyReading] @aws_api_key @aws_cognito_user_pools
+    plants(where: PlantSearch!): [Plant] @aws_cognito_user_pools
+    weather(location: ID!): [HourlyReading] @aws_cognito_user_pools
+    readings(where: SensorDataSearch!): [SensorReading] @aws_api_key @aws_cognito_user_pools
 }

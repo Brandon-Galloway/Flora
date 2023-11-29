@@ -49,8 +49,19 @@ export class FloraStack extends cdk.Stack {
         name: 'Timestamp',
         type: AttributeType.NUMBER
       },
-      timeToLiveAttribute: 'ExpireTimestamp'
+      timeToLiveAttribute: 'ExpireTimestamp',
     })
+    sensorDataTable.addGlobalSecondaryIndex({
+      indexName: 'DeviceIndex',
+      partitionKey: {
+        name: 'DeviceId',
+        type: AttributeType.STRING
+      },
+      sortKey: {
+        name: 'Timestamp',
+        type: AttributeType.NUMBER
+      }
+    });
 
     // CONFIGURE GRAPHQL_API
     const api = new GraphqlApi(this, "flora-graphql-api", {
@@ -127,9 +138,20 @@ export class FloraStack extends cdk.Stack {
     })
     sensorDataTable.grantReadWriteData(sensorUploadLambda);
 
+    const fetchSensorReadingsLambda = new NodejsFunction(this, "SensorReadingHandler", {
+      runtime: Runtime.NODEJS_18_X,
+      handler: "handler",
+      entry: path.join(__dirname, `../lib/lambdas/fetchSensorReadings.ts`),
+      environment: {
+        SENSOR_DATA_TABLE: sensorDataTable.tableName
+      },
+    })
+    sensorDataTable.grantReadWriteData(fetchSensorReadingsLambda);
+
     // Set the Lambda function as a data source for the AppSync API
     const plantDataSource = api.addLambdaDataSource('plantDataSource',plantLambda)
     const weatherDataSource = api.addLambdaDataSource('weather',weatherLambda)
+    const sensorReadingDataSource = api.addLambdaDataSource('readings',fetchSensorReadingsLambda)
 
     plantDataSource.createResolver("plant-resolver",{
       typeName: "Query",
@@ -139,6 +161,11 @@ export class FloraStack extends cdk.Stack {
     weatherDataSource.createResolver("weather-resolver",{
       typeName: "Query",
       fieldName: "weather"
+    })
+
+    sensorReadingDataSource.createResolver("sensor-data-resolver",{
+      typeName: "Query",
+      fieldName: "readings"
     })
 
     // Create IoT Rule to Pass Messages to the creation lambda
