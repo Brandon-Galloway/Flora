@@ -27,7 +27,6 @@ const client = new DynamoDBClient({});
 const dynamo = DynamoDBDocumentClient.from(client);
 const tableName = process.env.SENSOR_DATA_TABLE;
 
-
 async function fetchSensorData(args: any) {
     const params: any = {
         TableName: tableName,
