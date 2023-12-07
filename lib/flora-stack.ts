@@ -1,15 +1,13 @@
 import * as cdk from 'aws-cdk-lib'
-import * as path from "path"
 import { Construct } from 'constructs'
-import { Runtime } from 'aws-cdk-lib/aws-lambda'
-import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs'
 import { FieldLogLevel, GraphqlApi, SchemaFile, AuthorizationType, Definition } from 'aws-cdk-lib/aws-appsync'
 import { AccountRecovery, UserPool, UserPoolClient, VerificationEmailStyle } from 'aws-cdk-lib/aws-cognito'
 import { configureCfnOutputs } from './outputs/cfn-outputs'
 import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb'
 import * as iot from 'aws-cdk-lib/aws-iot'
-import { ServicePrincipal } from 'aws-cdk-lib/aws-iam'
+import { AppSyncLambdaResolver } from './constructs/AppSyncLambdaResolver'
+import { IoTLambda } from './constructs/IoTLambda'
 
 export class FloraStack extends cdk.Stack {
 
@@ -86,8 +84,6 @@ export class FloraStack extends cdk.Stack {
       }
     })
 
-    const floraUploadTopic = "flora/submit"
-
     // Create IoT Policy
     const floraPolicy = new iot.CfnPolicy(this, 'floraPolicy', {
       policyName: 'Flora_Policy',
@@ -108,86 +104,42 @@ export class FloraStack extends cdk.Stack {
     const ACCUWEATHER_API_KEY = Secret.fromSecretNameV2(this,"ACCUWEATHER_API_KEY","ACCUWEATHER_API_KEY");
 
     // CONFIGURE LAMBDA(s)
-    const plantLambda = new NodejsFunction(this, "AppSyncPlantHandler", {
-      runtime: Runtime.NODEJS_18_X,
-      handler: "handler",
-      entry: path.join(__dirname, `../lib/lambdas/plant.ts`),
-      environment: {
-        PERENUAL_API_KEY_ID: "PERENUAL_API_KEY"
-      },
-    })
-    PERENUAL_API_KEY.grantRead(plantLambda);
+    const plantLambda = new AppSyncLambdaResolver(this,"AppSyncPlantHandler",{
+      api: api,
+      name: 'plant',
+      type: 'Query',
+      fieldName: 'plants',
+      secrets: [PERENUAL_API_KEY]
+    });
 
-    const weatherLambda = new NodejsFunction(this, "AppSyncWeatherHandler", {
-      runtime: Runtime.NODEJS_18_X,
-      handler: "handler",
-      entry: path.join(__dirname, `../lib/lambdas/weather.ts`),
-      environment: {
-        ACCUWEATHER_API_KEY_ID: "ACCUWEATHER_API_KEY"
-      },
-    })
-    ACCUWEATHER_API_KEY.grantRead(weatherLambda);
+    const weatherLambda = new AppSyncLambdaResolver(this,"AppSyncWeatherHandler",{
+      api: api,
+      name: 'weather',
+      type: 'Query',
+      fieldName: 'weather',
+      secrets: [ACCUWEATHER_API_KEY]
+    });
 
-    const sensorUploadLambda = new NodejsFunction(this, "SensorUploadHandler", {
-      runtime: Runtime.NODEJS_18_X,
-      handler: "handler",
-      entry: path.join(__dirname, `../lib/lambdas/sensorUpload.ts`),
+    // take a look at this as it doesn't have a resolver
+    const sensorUploadLambda = new IoTLambda(this,"AppSyncSensorUploadHandler",{
+      name: 'sensorUpload',
+      topic: "flora/submit",
       environment: {
         SENSOR_DATA_TABLE: sensorDataTable.tableName
       },
-    })
-    sensorDataTable.grantReadWriteData(sensorUploadLambda);
+      dynamoTables: [sensorDataTable]
+    });
 
-    const fetchSensorReadingsLambda = new NodejsFunction(this, "SensorReadingHandler", {
-      runtime: Runtime.NODEJS_18_X,
-      handler: "handler",
-      entry: path.join(__dirname, `../lib/lambdas/fetchSensorReadings.ts`),
+    const fetchSensorReadingsLambda = new AppSyncLambdaResolver(this,"AppSyncSensorReadingHandler",{
+      api: api,
+      name: 'fetchSensorReadings',
+      type: 'Query',
+      fieldName: 'readings',
       environment: {
         SENSOR_DATA_TABLE: sensorDataTable.tableName
       },
-    })
-    sensorDataTable.grantReadWriteData(fetchSensorReadingsLambda);
-
-    // Set the Lambda function as a data source for the AppSync API
-    const plantDataSource = api.addLambdaDataSource('plantDataSource',plantLambda)
-    const weatherDataSource = api.addLambdaDataSource('weather',weatherLambda)
-    const sensorReadingDataSource = api.addLambdaDataSource('readings',fetchSensorReadingsLambda)
-
-    plantDataSource.createResolver("plant-resolver",{
-      typeName: "Query",
-      fieldName: "plants"
-    })
-
-    weatherDataSource.createResolver("weather-resolver",{
-      typeName: "Query",
-      fieldName: "weather"
-    })
-
-    sensorReadingDataSource.createResolver("sensor-data-resolver",{
-      typeName: "Query",
-      fieldName: "readings"
-    })
-
-    // Create IoT Rule to Pass Messages to the creation lambda
-    const floraDataSubmissionRule = new iot.CfnTopicRule(this, 'FloraDataSubmissionRule', {
-      ruleName: 'FloraDataSubmissionRule',
-      topicRulePayload: {
-        actions: [
-          {
-            lambda: {
-              functionArn: sensorUploadLambda.functionArn
-            }
-          },
-        ],
-        ruleDisabled: false,
-        sql: `SELECT * FROM '${floraUploadTopic}'`,
-      }
-    })
-    sensorUploadLambda.addPermission('IoTAccess', {
-      principal: new ServicePrincipal("iot.amazonaws.com"),
-      action: 'lambda:InvokeFunction',
-      sourceArn: floraDataSubmissionRule.attrArn
-    })
+      dynamoTables: [sensorDataTable]
+    });
 
     // CONFIGURE CFN OUTPUT
     const cfnOutputs = configureCfnOutputs(this,new Map([
