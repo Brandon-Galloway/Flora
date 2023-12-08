@@ -22,10 +22,11 @@ type AppSyncEvent = {
 const PERENUAL_BASE_URL = 'https://perenual.com'
 const PERENUAL_API_KEY_ID = process.env.PERENUAL_API_KEY_ID;
 const sm = new SecretsManagerClient({});
+const sm_promise = sm.send(new GetSecretValueCommand({ SecretId: PERENUAL_API_KEY_ID }));
+let PERENUAL_API_KEY: string | undefined;
 
 async function getPlantByID(id: number) {
     try {
-        const PERENUAL_API_KEY = await decodeSMSecret(PERENUAL_API_KEY_ID!);
         const apiURL = `${PERENUAL_BASE_URL}/api/species/details/${id}?key=${PERENUAL_API_KEY}`;
         const apiResponseData = await axios.get(apiURL);
         return new Array(apiResponseData.data);
@@ -40,7 +41,6 @@ async function getPlantByID(id: number) {
 
 async function getPlantsByName(name: String) {
     try {
-        const PERENUAL_API_KEY = await decodeSMSecret(PERENUAL_API_KEY_ID!);
         const apiURL = `${PERENUAL_BASE_URL}/api/species-list?q=${name}&key=${PERENUAL_API_KEY}`;
         const apiResponseData = await axios.get(apiURL);
         return apiResponseData.data.data
@@ -53,15 +53,8 @@ async function getPlantsByName(name: String) {
     }
 }
 
-async function decodeSMSecret(smkey: String) {
-    const params = {
-        SecretId: smkey
-    };
-    const result = await sm.send(new GetSecretValueCommand(params));
-    return result.SecretString;
-}
-
 export const handler = async(event: AppSyncEvent) => {
+    PERENUAL_API_KEY = (await sm_promise).SecretString;
     const args = event.arguments.where
     if (!args.id && !args.name) {
         throw new Error('ID or Name required.')

@@ -19,11 +19,13 @@ type AppSyncEvent = {
 
 const ACCUWEATHER_BASE_URL = 'http://dataservice.accuweather.com'
 const sm = new SecretsManagerClient({});
+const sm_promise = sm.send(new GetSecretValueCommand({ SecretId: "ACCUWEATHER_API_KEY" }));
+let ACCUWEATHER_API_KEY: string | undefined;
 
 async function getWeather(location: string) {
     try {
-        const ACCUWEATHER_API_KEY = await decodeSMSecret("ACCUWEATHER_API_KEY");
-        const apiURL = `${ACCUWEATHER_BASE_URL}/forecasts/v1/hourly/12hour/${location}?language=en-us&apikey=${ACCUWEATHER_API_KEY.SecretString}&details=true&metric=false`
+        const apiURL = `${ACCUWEATHER_BASE_URL}/forecasts/v1/hourly/12hour/${location}?language=en-us&apikey=${ACCUWEATHER_API_KEY}&details=true&metric=false`
+        console.log("API URL:" + apiURL);
         const apiResponseData = await axios.get(apiURL);
         return apiResponseData.data
     } catch(error) {
@@ -35,14 +37,7 @@ async function getWeather(location: string) {
     }
 }
 
-async function decodeSMSecret(smkey: String) {
-    const params = {
-        SecretId: smkey
-    };
-    const result = await sm.send(new GetSecretValueCommand(params));
-    return result.SecretString;
-}
-
 export const handler = async(event: AppSyncEvent) => {
+    ACCUWEATHER_API_KEY = (await sm_promise).SecretString;
     return getWeather(event.arguments.location);
 }

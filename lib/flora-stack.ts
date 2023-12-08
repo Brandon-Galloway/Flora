@@ -36,7 +36,15 @@ export class FloraStack extends cdk.Stack {
 
     const userPoolClient = new UserPoolClient(this, "UserPoolClient", {userPool})
 
-    // CONFIGURE DYNAMODB TABLE
+    // CONFIGURE DYNAMODB TABLES
+    const deviceDataTable = new Table(this,"flora-device-data-table",{
+      billingMode: BillingMode.PAY_PER_REQUEST,
+      partitionKey: {
+        name: 'DeviceId',
+        type: AttributeType.STRING,
+      },
+    })
+
     const sensorDataTable = new Table(this,"flora-sensor-data-table",{
       billingMode: BillingMode.PAY_PER_REQUEST,
       partitionKey: {
@@ -104,6 +112,8 @@ export class FloraStack extends cdk.Stack {
     const ACCUWEATHER_API_KEY = Secret.fromSecretNameV2(this,"ACCUWEATHER_API_KEY","ACCUWEATHER_API_KEY");
 
     // CONFIGURE LAMBDA(s)
+    
+    // External API(s)
     const plantLambda = new AppSyncLambdaResolver(this,"AppSyncPlantHandler",{
       api: api,
       name: 'plant',
@@ -120,6 +130,7 @@ export class FloraStack extends cdk.Stack {
       secrets: [ACCUWEATHER_API_KEY]
     });
 
+    // IoT Sensor MQTT Data Upload
     // take a look at this as it doesn't have a resolver
     const sensorUploadLambda = new IoTLambda(this,"AppSyncSensorUploadHandler",{
       name: 'sensorUpload',
@@ -130,6 +141,7 @@ export class FloraStack extends cdk.Stack {
       dynamoTables: [sensorDataTable]
     });
 
+    // Internal Data
     const fetchSensorReadingsLambda = new AppSyncLambdaResolver(this,"AppSyncSensorReadingHandler",{
       api: api,
       name: 'fetchSensorReadings',
@@ -140,6 +152,31 @@ export class FloraStack extends cdk.Stack {
       },
       dynamoTables: [sensorDataTable]
     });
+
+    const fetchDeviceConfigurationLambda = new AppSyncLambdaResolver(this,"AppSyncDeviceConfigurationHandler",{
+      api: api,
+      name: 'fetchDeviceConfiguration',
+      type: 'Query',
+      fieldName: 'devices',
+      environment: {
+        DEVICE_CONFIGURATION_TABLE: deviceDataTable.tableName
+      },
+      dynamoTables: [deviceDataTable]
+    });
+
+    const registerDeviceLambda = new AppSyncLambdaResolver(this,"AppSyncDeviceRegistrationHandler",{
+      api: api,
+      name: 'registerDevice',
+      type: 'Mutation',
+      fieldName: 'registerDevice',
+      environment: {
+        DEVICE_CONFIGURATION_TABLE: deviceDataTable.tableName
+      },
+      dynamoTables: [deviceDataTable],
+      secrets: [ACCUWEATHER_API_KEY]
+    });
+
+
 
     // CONFIGURE CFN OUTPUT
     const cfnOutputs = configureCfnOutputs(this,new Map([

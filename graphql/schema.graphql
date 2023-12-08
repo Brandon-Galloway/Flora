@@ -58,7 +58,7 @@ type Reading {
     Phrase: String
 }
 
-type HourlyReading {
+type HourlyReading @aws_cognito_user_pools {
         DateTime: String,
         EpochDateTime: Int,
         WeatherIcon: Int,
@@ -88,7 +88,7 @@ type HourlyReading {
         SolarIrradiance: Reading,
     }
 
-type SensorReading {
+type SensorReading @aws_api_key @aws_cognito_user_pools {
     DeviceId: String!,
     Timestamp: Int!,
     SoilTemperature: Int!,
@@ -98,6 +98,20 @@ type SensorReading {
     Light: Int!,
     VisibleLight: Int!,
     InfraredLight: Int!
+}
+
+type DeviceLocation {
+    Lat: Float,
+    Long: Float,
+    LocationName: String,
+    LocationKey: String
+}
+
+type DeviceConfiguration {
+    DeviceId: String!,
+    Nickname: String,
+    BatteryLife: Int,
+    Location: DeviceLocation
 }
 
 input PlantSearch {
@@ -111,8 +125,23 @@ input SensorDataSearch {
     EndTimestamp: Int
 }
 
+input DeviceSearch {
+    DeviceId: String!
+}
+
 type Query {
     plants(where: PlantSearch!): [Plant] @aws_cognito_user_pools
     weather(location: ID!): [HourlyReading] @aws_cognito_user_pools
     readings(where: SensorDataSearch!): [SensorReading] @aws_api_key @aws_cognito_user_pools
+    devices(where: DeviceSearch!): [DeviceConfiguration] @aws_api_key @aws_cognito_user_pools
+}
+
+input DeviceRegistrationInput {
+    Nickname: String!,
+    Lat: Float!,
+    Long: Float!
+}
+
+type Mutation {
+    registerDevice(device: DeviceRegistrationInput!): DeviceConfiguration @aws_api_key @aws_cognito_user_pools
 }
