@@ -17,7 +17,7 @@ export class FloraStack extends cdk.Stack {
     
     // CONFIGURE USER POOL
     const userPool = new UserPool(this, 'flora-user-pool', {
-      selfSignUpEnabled: true,
+      selfSignUpEnabled: false,
       accountRecovery: AccountRecovery.PHONE_AND_EMAIL,
       userVerification: {
         emailStyle: VerificationEmailStyle.CODE
@@ -31,7 +31,7 @@ export class FloraStack extends cdk.Stack {
           required: true,
           mutable: true
         }
-      }
+      },
     })
 
     const userPoolClient = new UserPoolClient(this, "UserPoolClient", {userPool})
