@@ -2,12 +2,14 @@ import {
     AdminInitiateAuthCommand,
     AuthFlowType,
     CognitoIdentityProviderClient,
+    InitiateAuthCommand,
   } from "@aws-sdk/client-cognito-identity-provider";
   import * as crypto from "crypto"
 
 type AuthInput = {
     Username: string,
     Password: string,
+    RefreshToken: string,
 }
 
 type AppSyncEvent = {
@@ -43,22 +45,39 @@ function getSecretHash(username: string) {
   }
 
 async function authenticate(args: AuthInput) {
-    
     const secretHash = getSecretHash(args.Username);    
     if(secretHash == null) {
         throw new Error('An Issue Occured Signing In')
     }
+    let command: AdminInitiateAuthCommand;
 
-    const command = new AdminInitiateAuthCommand({
-        ClientId: USER_POOL_CLIENT_ID,
-        UserPoolId: USER_POOL_ID,
-        AuthFlow: AuthFlowType.ADMIN_NO_SRP_AUTH,
-        AuthParameters: {
-            USERNAME: args.Username,
-            PASSWORD: args.Password,
-            SECRET_HASH: secretHash,
-        },
-      });
+    if(args.RefreshToken != null) {
+        console.log("Utilizing Refresh Token")
+        command = new AdminInitiateAuthCommand({
+            ClientId: USER_POOL_CLIENT_ID,
+            UserPoolId: USER_POOL_ID,
+            AuthFlow: AuthFlowType.REFRESH_TOKEN_AUTH,
+            AuthParameters: {
+                REFRESH_TOKEN: args.RefreshToken,
+                SECRET_HASH: secretHash,
+            }
+        })
+    } else if(args.Username != null && args.Password != null) {
+        console.log("Authenticating");
+        command = new AdminInitiateAuthCommand({
+            ClientId: USER_POOL_CLIENT_ID,
+            UserPoolId: USER_POOL_ID,
+            AuthFlow: AuthFlowType.ADMIN_NO_SRP_AUTH,
+            AuthParameters: {
+                USERNAME: args.Username,
+                PASSWORD: args.Password,
+                SECRET_HASH: secretHash,
+            },
+          });
+    } else {
+        throw new Error("Invalid Credentials: Please supply either a refresh token or a username and password");
+    }
+
     
     const response = await client.send(command);
     const authResult = response.AuthenticationResult;
@@ -73,5 +92,6 @@ async function authenticate(args: AuthInput) {
 }
   
 export const handler = async(event: AppSyncEvent, context: any) => {
-    return await authenticate(event.arguments.user);
+    const user = event.arguments.user;
+    return await authenticate(user);
 }

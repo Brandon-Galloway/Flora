@@ -115,8 +115,8 @@ type DeviceConfiguration @aws_cognito_user_pools{
 }
 
 type AuthGrant {
-    AccessToken: String,
-    IdToken: String,
+    AccessToken: String!,
+    IdToken: String!,
     RefreshToken: String,
 }
 
@@ -155,13 +155,14 @@ input DeviceRegistrationInput {
 }
 
 input AuthInput {
-    Username: String!,
-    Password: String!,
+    Username: String,
+    Password: String,
+    RefreshToken: String,
 }
 
 # Mutations
 
 type Mutation {
     registerDevice(device: DeviceRegistrationInput): DeviceConfiguration @aws_cognito_user_pools
-    signin(user: AuthInput!): AuthGrant @aws_api_key
+    signin(user: AuthInput!): AuthGrant! @aws_api_key
 }
