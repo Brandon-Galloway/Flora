@@ -7,3 +7,9 @@ node_modules
 .cdk.staging
 cdk.out
 cdk-exports.json
+
+# Dotenv
+.env
+
+# VS Code
+.vscode/

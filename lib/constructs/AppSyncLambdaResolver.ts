@@ -18,11 +18,12 @@ export interface AppSyncLambdaResolverProps {
 }
 
 export class AppSyncLambdaResolver extends Construct {
+    public lambda: NodejsFunction;
 
     constructor(scope: Construct, id: string, props: AppSyncLambdaResolverProps) {
         super(scope, id);
         const namePrefix = props.api.name + '-' + props.name;
-        const lambda = new NodejsFunction(this, namePrefix + "-lambda", {
+        this.lambda = new NodejsFunction(this, namePrefix + "-lambda", {
             runtime: Runtime.NODEJS_18_X,
             handler: "handler",
             entry: path.join(__dirname, `../lambdas/${props.name}.ts`),
@@ -37,15 +38,15 @@ export class AppSyncLambdaResolver extends Construct {
 
         // Grant Access to all supplied secrets
         props.secrets?.forEach((secret) => {
-           secret.grantRead(lambda); 
+           secret.grantRead(this.lambda); 
         });
 
         props.dynamoTables?.forEach((table) => {
-            table.grantReadWriteData(lambda);
+            table.grantReadWriteData(this.lambda);
         })
 
         // add as a datasource to the api
-        const datasource = props.api.addLambdaDataSource(namePrefix + '-datasource',lambda)
+        const datasource = props.api.addLambdaDataSource(namePrefix + '-datasource',this.lambda)
 
         // add as resolver for a given field
         datasource.createResolver(namePrefix + "-resolver",{

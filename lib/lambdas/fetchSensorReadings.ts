@@ -17,9 +17,11 @@ type AppSyncEvent = {
     },
     identity: {
         username: string,
+        sub: string,
         claims: {
             [key: string]: string[]
-        }
+        },
+        sourceIp: string[]
     }
 }
 
@@ -27,14 +29,15 @@ const client = new DynamoDBClient({});
 const dynamo = DynamoDBDocumentClient.from(client);
 const tableName = process.env.SENSOR_DATA_TABLE;
 
-async function fetchSensorData(args: any) {
+async function fetchSensorData(args: any, userId: string) {
     const params: any = {
         TableName: tableName,
         IndexName: "DeviceIndex",
-        KeyConditionExpression: 'DeviceId = :deviceId',
+        KeyConditionExpression: 'UserId = :userId AND DeviceId = :deviceId',
         ExpressionAttributeNames: {},
         ExpressionAttributeValues: {
             ':deviceId': args.DeviceId,
+            ':userId': userId,
         }
     }
 
@@ -60,9 +63,15 @@ async function fetchSensorData(args: any) {
   
   export const handler = async(event: AppSyncEvent,context: any) => {
     const args = event.arguments.where
+    const userId = event.identity.sub;
+    
+    if(userId == null) {
+        throw new Error('An error occured establishing authentication.')
+    }
+
     if (args.StartTimestamp == null ? args.EndTimestamp != null : args.EndTimestamp == null) {
         throw new Error('Timestamp selections must include both a valid StartTimestamp and EndTimestamp.')
     }
 
-    return await fetchSensorData(args);
+    return await fetchSensorData(args,userId);
   }

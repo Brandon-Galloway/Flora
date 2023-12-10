@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import * as cdk from 'aws-cdk-lib'
 import { Construct } from 'constructs'
 import { FieldLogLevel, GraphqlApi, SchemaFile, AuthorizationType, Definition } from 'aws-cdk-lib/aws-appsync'
@@ -8,6 +9,7 @@ import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb'
 import * as iot from 'aws-cdk-lib/aws-iot'
 import { AppSyncLambdaResolver } from './constructs/AppSyncLambdaResolver'
 import { IoTLambda } from './constructs/IoTLambda'
+import { PolicyStatement } from 'aws-cdk-lib/aws-iam'
 
 export class FloraStack extends cdk.Stack {
 
@@ -34,7 +36,28 @@ export class FloraStack extends cdk.Stack {
       },
     })
 
-    const userPoolClient = new UserPoolClient(this, "UserPoolClient", {userPool})
+    const userPoolClient = new UserPoolClient(this, "UserPoolClient", {
+      userPool: userPool,
+      generateSecret: true,
+      oAuth: {
+        flows: {
+          authorizationCodeGrant: true,
+          implicitCodeGrant: true,
+          clientCredentials: false,
+        },
+        callbackUrls: [process.env.CALLBACK_URLS ?? ''],
+        logoutUrls: [process.env.LOGOUT_URLS ?? ''],
+      },
+      authFlows: {
+        adminUserPassword: true,
+      }
+    })
+
+    userPool.addDomain("UserPoolDomain",{
+      cognitoDomain: {
+        domainPrefix: 'flora'
+      }
+    })
 
     // CONFIGURE DYNAMODB TABLES
     const deviceDataTable = new Table(this,"flora-device-data-table",{
@@ -112,7 +135,26 @@ export class FloraStack extends cdk.Stack {
     const ACCUWEATHER_API_KEY = Secret.fromSecretNameV2(this,"ACCUWEATHER_API_KEY","ACCUWEATHER_API_KEY");
 
     // CONFIGURE LAMBDA(s)
-    
+
+    // Auth
+    const signinLambda = new AppSyncLambdaResolver(this,"AppSyncSigninHandler",{
+      api: api,
+      name: 'signin',
+      type: 'Mutation',
+      fieldName: 'signin',
+      environment: {
+        USER_POOL_ID: userPool.userPoolId,
+        USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+        //TODO Replace with Amplify integration
+        USER_POOL_CLIENT_SECRET: userPoolClient.userPoolClientSecret.unsafeUnwrap()
+      }
+    })
+
+    signinLambda.lambda.addToRolePolicy(new PolicyStatement({
+      actions: ['cognito-idp:AdminInitiateAuth'],
+      resources: [userPool.userPoolArn]
+    }))
+  
     // External API(s)
     const plantLambda = new AppSyncLambdaResolver(this,"AppSyncPlantHandler",{
       api: api,

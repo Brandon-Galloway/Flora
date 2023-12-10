@@ -25,9 +25,11 @@ type AppSyncEvent = {
     },
     identity: {
         username: string,
+        sub: string,
         claims: {
             [key: string]: string[]
-        }
+        },
+        sourceIp: string[]
     }
 }
 
@@ -42,16 +44,16 @@ const sm = new SecretsManagerClient({});
 const sm_promise = sm.send(new GetSecretValueCommand({ SecretId: "ACCUWEATHER_API_KEY" }));
 let ACCUWEATHER_API_KEY: string | undefined;
 
-async function registerDevice(args: DeviceRegistrationInput) {
+async function registerDevice(args: DeviceRegistrationInput, userId: string) {
 
     const location = await discoverLocation(args.Lat, args.Long);
     let device = {
         DeviceId: randomUUID(),
         Nickname: args.Nickname,
         BatteryLife: -1,
-        Location: location
+        Location: location,
+        UserId: userId,
     }
-    console.log("Device: " + JSON.stringify(device))
     const data = await dynamo.send(
         new PutCommand({
           TableName: tableName,
@@ -63,9 +65,7 @@ async function registerDevice(args: DeviceRegistrationInput) {
 
 async function discoverLocation(lat: number, long: number) {
     const apiURL = `${ACCUWEATHER_BASE_URL}/locations/v1/cities/geoposition/search?language=en-us&apikey=${ACCUWEATHER_API_KEY}&q=${lat},${long}&details=true&toplevel=true`
-    console.log("API URL:" + apiURL);
     const apiResponseData = (await axios.get(apiURL)).data;
-    console.log("Response: " + JSON.stringify(apiResponseData))
     return {
         Lat: lat,
         Long: long,
@@ -77,8 +77,13 @@ async function discoverLocation(lat: number, long: number) {
 
   
 export const handler = async(event: AppSyncEvent, context: any) => {
-    console.log("EVENT: " + JSON.stringify(event));
     ACCUWEATHER_API_KEY = (await sm_promise).SecretString;
+    const userId = event.identity.sub;
     const args = event.arguments.device;
-    return await registerDevice(args);
+
+    if(userId == null) {
+        throw new Error('An error occured establishing authentication.')
+    }
+
+    return await registerDevice(args,userId);
 }

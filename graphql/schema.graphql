@@ -100,19 +100,27 @@ type SensorReading @aws_api_key @aws_cognito_user_pools {
     InfraredLight: Int!
 }
 
-type DeviceLocation {
-    Lat: Float,
-    Long: Float,
+type DeviceLocation @aws_cognito_user_pools{
+    Lat: Float, @aws_cognito_user_pools(cognito_groups: ["Admin"])
+    Long: Float, @aws_cognito_user_pools(cognito_groups: ["Admin"])
     LocationName: String,
     LocationKey: String
 }
 
-type DeviceConfiguration {
+type DeviceConfiguration @aws_cognito_user_pools{
     DeviceId: String!,
     Nickname: String,
     BatteryLife: Int,
     Location: DeviceLocation
 }
+
+type AuthGrant {
+    AccessToken: String,
+    IdToken: String,
+    RefreshToken: String,
+}
+
+# Query [Inputs]
 
 input PlantSearch {
     id: ID,
@@ -129,12 +137,16 @@ input DeviceSearch {
     DeviceId: String!
 }
 
+# Queries
+
 type Query {
     plants(where: PlantSearch!): [Plant] @aws_cognito_user_pools
     weather(location: ID!): [HourlyReading] @aws_cognito_user_pools
     readings(where: SensorDataSearch!): [SensorReading] @aws_api_key @aws_cognito_user_pools
-    devices(where: DeviceSearch!): [DeviceConfiguration] @aws_api_key @aws_cognito_user_pools
+    devices(where: DeviceSearch!): [DeviceConfiguration] @aws_cognito_user_pools
 }
+
+# Mutation [Inputs]
 
 input DeviceRegistrationInput {
     Nickname: String!,
@@ -142,6 +154,14 @@ input DeviceRegistrationInput {
     Long: Float!
 }
 
+input AuthInput {
+    Username: String!,
+    Password: String!,
+}
+
+# Mutations
+
 type Mutation {
-    registerDevice(device: DeviceRegistrationInput!): DeviceConfiguration @aws_api_key @aws_cognito_user_pools
+    registerDevice(device: DeviceRegistrationInput): DeviceConfiguration @aws_cognito_user_pools
+    signin(user: AuthInput!): AuthGrant @aws_api_key
 }
