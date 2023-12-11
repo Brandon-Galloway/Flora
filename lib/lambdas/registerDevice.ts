@@ -52,7 +52,7 @@ async function registerDevice(args: DeviceRegistrationInput, userId: string) {
         Nickname: args.Nickname,
         BatteryLife: -1,
         Location: location,
-        UserId: userId,
+        AuthorizedUsers: [userId],
     }
     const data = await dynamo.send(
         new PutCommand({

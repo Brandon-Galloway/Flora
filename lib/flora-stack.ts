@@ -36,6 +36,11 @@ export class FloraStack extends cdk.Stack {
       },
     })
 
+    const webPoolClient = new UserPoolClient(this,"WebUserPoolClient",{
+      userPool: userPool,
+      userPoolClientName: "WebUserPool"
+    });
+
     const userPoolClient = new UserPoolClient(this, "UserPoolClient", {
       userPool: userPool,
       generateSecret: true,

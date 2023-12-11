@@ -33,7 +33,7 @@ async function fetchSensorData(args: DeviceSearchArguments, userId: string) {
     
     const params: any = {
         TableName: tableName,
-        FilterExpression: 'UserId = :userId',
+        FilterExpression: 'contains(AuthorizedUsers, :userId)',
         ExpressionAttributeValues: {
             ':userId': userId,
         }
