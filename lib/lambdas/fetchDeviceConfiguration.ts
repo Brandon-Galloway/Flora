@@ -46,7 +46,7 @@ async function fetchSensorData(args: DeviceSearchArguments, userId: string) {
             ':deviceId': args.DeviceId,
         };
     }
-        
+    
     const data = await dynamo.send(
         new QueryCommand(params)
     );

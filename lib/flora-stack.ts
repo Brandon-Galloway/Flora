@@ -184,16 +184,6 @@ export class FloraStack extends cdk.Stack {
     });
 
     // Internal Data
-    const fetchSensorReadingsLambda = new AppSyncLambdaResolver(this,"AppSyncSensorReadingHandler",{
-      api: api,
-      name: 'fetchSensorReadings',
-      type: 'Query',
-      fieldName: 'readings',
-      environment: {
-        SENSOR_DATA_TABLE: sensorDataTable.tableName
-      },
-      dynamoTables: [sensorDataTable]
-    });
 
     const fetchDeviceConfigurationLambda = new AppSyncLambdaResolver(this,"AppSyncDeviceConfigurationHandler",{
       api: api,
@@ -204,6 +194,19 @@ export class FloraStack extends cdk.Stack {
         DEVICE_CONFIGURATION_TABLE: deviceDataTable.tableName
       },
       dynamoTables: [deviceDataTable]
+    });
+
+    const fetchSensorReadingsLambda = new AppSyncLambdaResolver(this,"AppSyncSensorReadingHandler",{
+      api: api,
+      name: 'fetchSensorReadings',
+      type: 'Query',
+      fieldName: 'readings',
+      environment: {
+        SENSOR_DATA_TABLE: sensorDataTable.tableName,
+        FETCH_DEVICE_CONFIG_LAMBDA: fetchDeviceConfigurationLambda.getName()
+      },
+      dynamoTables: [sensorDataTable],
+      lambdas: [fetchDeviceConfigurationLambda]
     });
 
     const registerDeviceLambda = new AppSyncLambdaResolver(this,"AppSyncDeviceRegistrationHandler",{

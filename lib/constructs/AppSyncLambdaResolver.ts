@@ -5,6 +5,7 @@ import { ISecret } from "aws-cdk-lib/aws-secretsmanager";
 import { GraphqlApi } from 'aws-cdk-lib/aws-appsync';
 import { Table } from 'aws-cdk-lib/aws-dynamodb'
 import * as path from "path"
+import { IGrantable } from 'aws-cdk-lib/aws-iam';
 
 
 export interface AppSyncLambdaResolverProps {
@@ -14,6 +15,7 @@ export interface AppSyncLambdaResolverProps {
     fieldName: string,
     secrets?: ISecret[],
     dynamoTables?: Table[]
+    lambdas?: AppSyncLambdaResolver[]
     environment?: {[key: string]: string}
 }
 
@@ -41,8 +43,14 @@ export class AppSyncLambdaResolver extends Construct {
            secret.grantRead(this.lambda); 
         });
 
+        // Grant Read/Write to all supplied tables
         props.dynamoTables?.forEach((table) => {
             table.grantReadWriteData(this.lambda);
+        })
+
+        // Grant Invoke to all supplied lambdas
+        props.lambdas?.forEach((lambdaFunction) => {
+            lambdaFunction.grantInvoke(this);
         })
 
         // add as a datasource to the api
@@ -53,5 +61,13 @@ export class AppSyncLambdaResolver extends Construct {
             typeName: props.type,
             fieldName: props.fieldName
         })
+      }
+
+      public grantInvoke(grantee: AppSyncLambdaResolver) {
+        this.lambda.grantInvoke(grantee.lambda);
+      }
+
+      public getName() {
+        return this.lambda.functionName;
       }
 }

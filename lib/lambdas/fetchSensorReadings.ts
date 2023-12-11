@@ -3,6 +3,7 @@ import {
   DynamoDBDocumentClient,
   QueryCommand,
 } from "@aws-sdk/lib-dynamodb";
+import { Lambda, InvokeCommand } from '@aws-sdk/client-lambda';
 
 type AppSyncEvent = {
     info: {
@@ -10,7 +11,7 @@ type AppSyncEvent = {
     },
     arguments: {
         where : {
-            DeviceId: String,
+            DeviceId: string,
             StartTimestamp: number,
             EndTimestamp: number
         }
@@ -25,19 +26,57 @@ type AppSyncEvent = {
     }
 }
 
+type DeviceConfiguration = {
+    DeviceId: string,
+    Nickname: string,
+    BatteryLife: number,
+    Location: {
+        Lat: number, 
+        Long: number,
+        LocationName: string,
+        LocationKey: string
+    }
+}
+
 const client = new DynamoDBClient({});
 const dynamo = DynamoDBDocumentClient.from(client);
 const tableName = process.env.SENSOR_DATA_TABLE;
+const deviceLambda = process.env.FETCH_DEVICE_CONFIG_LAMBDA;
+const lambda = new Lambda();
+
+async function isUserAuthorizedForDevice(userId: string, deviceId: string) {
+    const response = await lambda.send(new InvokeCommand({
+        FunctionName: deviceLambda,
+        InvocationType: 'RequestResponse',
+        Payload: JSON.stringify({
+            arguments: {
+                where: {
+                    DeviceId: deviceId
+                }
+            },
+            identity: {
+                sub: userId
+            }
+        })
+    }))
+    let devices: DeviceConfiguration[] = [];
+    if(response.Payload != null) {
+        let payload = Buffer.from(response.Payload).toString('utf-8')
+        devices = JSON.parse(payload)
+    } else {
+        throw new Error("An error occured...")
+    }
+    return devices.some(device => device.DeviceId === deviceId);
+}
 
 async function fetchSensorData(args: any, userId: string) {
     const params: any = {
         TableName: tableName,
         IndexName: "DeviceIndex",
-        KeyConditionExpression: 'UserId = :userId AND DeviceId = :deviceId',
+        KeyConditionExpression: 'DeviceId = :deviceId',
         ExpressionAttributeNames: {},
         ExpressionAttributeValues: {
             ':deviceId': args.DeviceId,
-            ':userId': userId,
         }
     }
 
@@ -64,8 +103,8 @@ async function fetchSensorData(args: any, userId: string) {
   export const handler = async(event: AppSyncEvent,context: any) => {
     const args = event.arguments.where
     const userId = event.identity.sub;
-    
-    if(userId == null) {
+    const authorized = await isUserAuthorizedForDevice(userId,args.DeviceId);
+    if(userId == null || !authorized) {
         throw new Error('An error occured establishing authentication.')
     }
 

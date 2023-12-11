@@ -48,6 +48,5 @@ async function uploadSensorData(sensorData: SensorCollectionEvent) {
   }
   
   export const handler = async(event: SensorCollectionEvent,context: any) => {
-    console.log("EVENT: " + JSON.stringify(event));
     return uploadSensorData(event);
   }

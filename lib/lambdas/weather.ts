@@ -25,7 +25,6 @@ let ACCUWEATHER_API_KEY: string | undefined;
 async function getWeather(location: string) {
     try {
         const apiURL = `${ACCUWEATHER_BASE_URL}/forecasts/v1/hourly/12hour/${location}?language=en-us&apikey=${ACCUWEATHER_API_KEY}&details=true&metric=false`
-        console.log("API URL:" + apiURL);
         const apiResponseData = await axios.get(apiURL);
         return apiResponseData.data
     } catch(error) {
