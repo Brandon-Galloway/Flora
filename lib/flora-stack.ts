@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import * as cdk from 'aws-cdk-lib'
 import { Construct } from 'constructs'
-import { FieldLogLevel, GraphqlApi, SchemaFile, AuthorizationType, Definition } from 'aws-cdk-lib/aws-appsync'
+import { FieldLogLevel, GraphqlApi, SchemaFile, AuthorizationType, Definition, CfnDomainName, CfnDomainNameApiAssociation } from 'aws-cdk-lib/aws-appsync'
 import { AccountRecovery, UserPool, UserPoolClient, VerificationEmailStyle } from 'aws-cdk-lib/aws-cognito'
 import { configureCfnOutputs } from './outputs/cfn-outputs'
 import { Secret } from "aws-cdk-lib/aws-secretsmanager";
@@ -10,6 +10,7 @@ import * as iot from 'aws-cdk-lib/aws-iot'
 import { AppSyncLambdaResolver } from './constructs/AppSyncLambdaResolver'
 import { IoTLambda } from './constructs/IoTLambda'
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam'
+import { Certificate } from 'aws-cdk-lib/aws-certificatemanager'
 
 export class FloraStack extends cdk.Stack {
 
@@ -119,6 +120,25 @@ export class FloraStack extends cdk.Stack {
         ]
       }
     })
+
+    // Attach a custom domain if configured
+    const customDomain = process.env.CUSTOM_URL;
+    const customDomainCertArn = process.env.CUSTOM_URL_CERTIFICATE_ARN
+    if(customDomain != undefined && customDomainCertArn != undefined) {
+      //const customDomainCert = Certificate.fromCertificateArn(this,"flora-custom-cert",customDomainCertArn);
+
+      const appsyncDomainName = new CfnDomainName(this,"flora-custom-domain-name",{
+        certificateArn: customDomainCertArn,
+        domainName: customDomain
+      })
+
+      const appsyncDomainAssociation = new CfnDomainNameApiAssociation(this, "flora-custom-domain-association", {
+        apiId: api.apiId,
+        domainName: customDomain
+      })
+
+      appsyncDomainAssociation.addDependency(appsyncDomainName);
+    }
 
     // Create IoT Policy
     const floraPolicy = new iot.CfnPolicy(this, 'floraPolicy', {
