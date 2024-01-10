@@ -100,6 +100,11 @@ type SensorReading @aws_api_key @aws_cognito_user_pools {
     InfraredLight: Int!
 }
 
+type SensorReadings @aws_cognito_user_pools{
+    page: [SensorReading]
+    nextToken: String
+}
+
 type DeviceLocation @aws_cognito_user_pools{
     Lat: Float, @aws_cognito_user_pools(cognito_groups: ["Admin"])
     Long: Float, @aws_cognito_user_pools(cognito_groups: ["Admin"])
@@ -122,6 +127,12 @@ type AuthGrant {
 
 # Query [Inputs]
 
+enum SensorSearchRange {
+    RECENT
+    HOURLY
+    DAILY
+}
+
 input PlantSearch {
     id: ID,
     name: String
@@ -129,8 +140,8 @@ input PlantSearch {
 
 input SensorDataSearch {
     DeviceId: String!,
-    StartTimestamp: Int,
-    EndTimestamp: Int
+    range: SensorSearchRange!,
+    page: String
 }
 
 input DeviceSearch {
@@ -142,7 +153,7 @@ input DeviceSearch {
 type Query {
     plants(where: PlantSearch!): [Plant] @aws_cognito_user_pools
     weather(location: ID!): [HourlyReading] @aws_cognito_user_pools
-    readings(where: SensorDataSearch!): [SensorReading] @aws_api_key @aws_cognito_user_pools
+    readings(where: SensorDataSearch!): SensorReadings @aws_api_key @aws_cognito_user_pools
     devices(where: DeviceSearch!): [DeviceConfiguration] @aws_cognito_user_pools
 }
 

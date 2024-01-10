@@ -1,20 +1,28 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, QueryCommandInput } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
   QueryCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { Lambda, InvokeCommand } from '@aws-sdk/client-lambda';
 
+enum SensorSearchRange {
+    RECENT = 1,
+    HOURLY = 4,
+    DAILY = 96,
+}
+
+type SensorDataArgs = {
+    DeviceId: any,
+    range: keyof typeof SensorSearchRange,
+    page: string,
+}
+
 type AppSyncEvent = {
     info: {
         fieldName: string
     },
     arguments: {
-        where : {
-            DeviceId: string,
-            StartTimestamp: number,
-            EndTimestamp: number
-        }
+        where : SensorDataArgs
     },
     identity: {
         username: string,
@@ -69,47 +77,42 @@ async function isUserAuthorizedForDevice(userId: string, deviceId: string) {
     return devices.some(device => device.DeviceId === deviceId);
 }
 
-async function fetchSensorData(args: any, userId: string) {
-    const params: any = {
+async function fetchSensorData(args: SensorDataArgs, _userId: string) {
+    const endTimestamp: any = Math.floor(new Date().getTime() / 1000);
+    const startTimestamp: any = endTimestamp - 31_557_600;
+    const params: QueryCommandInput = {
         TableName: tableName,
         IndexName: "DeviceIndex",
-        KeyConditionExpression: 'DeviceId = :deviceId',
-        ExpressionAttributeNames: {},
+        KeyConditionExpression: 'DeviceId = :deviceId AND #ts BETWEEN :startTimestamp AND :endTimestamp',
+        ExpressionAttributeNames: {
+            '#ts': 'Timestamp'
+        },
         ExpressionAttributeValues: {
             ':deviceId': args.DeviceId,
-        }
-    }
-
-    // If a time range is specified, narrow the query
-    if(args.StartTimestamp) {
-        params.KeyConditionExpression += ' AND #ts BETWEEN :startTimestamp AND :endTimestamp'
-        params.ExpressionAttributeNames = {
-            ...params.ExpressionAttributeNames,
-            '#ts': 'Timestamp'
-        }
-        params.ExpressionAttributeValues = {
-            ...params.ExpressionAttributeValues,
-            ':startTimestamp': args.StartTimestamp,
-            ':endTimestamp': args.EndTimestamp,
-        };
+            ':startTimestamp': startTimestamp,
+            ':endTimestamp': endTimestamp,
+        },
+        ScanIndexForward: false,
+        ExclusiveStartKey: args.page ? JSON.parse(Buffer.from(args.page, 'base64').toString('utf-8')) : undefined,
+        Limit: SensorSearchRange[args.range]
     }
         
     const data = await dynamo.send(
         new QueryCommand(params)
     );
-    return data.Items;
+    return {
+        page: data.Items,
+        nextToken: data.LastEvaluatedKey ? Buffer.from(JSON.stringify(data.LastEvaluatedKey)).toString('base64') : null
+    };
   }
   
-  export const handler = async(event: AppSyncEvent,context: any) => {
+  export const handler = async(event: AppSyncEvent,_context: any) => {
     const args = event.arguments.where
     const userId = event.identity.sub;
     const authorized = await isUserAuthorizedForDevice(userId,args.DeviceId);
+    
     if(userId == null || !authorized) {
         throw new Error('An error occured establishing authentication.')
-    }
-
-    if (args.StartTimestamp == null ? args.EndTimestamp != null : args.EndTimestamp == null) {
-        throw new Error('Timestamp selections must include both a valid StartTimestamp and EndTimestamp.')
     }
 
     return await fetchSensorData(args,userId);
